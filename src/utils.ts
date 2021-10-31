@@ -64,6 +64,10 @@ export function overwriteBytes(a: Uint8Array, b: Uint8Array, i = 0): void {
   }
 }
 
+export function referenceToHex(reference: Reference | Uint8Array): string {
+  return Buffer.from(reference).toString('hex')
+}
+
 /**
  * Flattens the given array that consist of Uint8Arrays.
  */

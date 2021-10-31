@@ -8,7 +8,7 @@ import {
   fromBigEndian,
   keccak256Hash,
   stringToBytes,
-  toBigEndianFromUint16,
+  toBigEndianFromUint16
 } from './utils'
 
 const PATH_SEPARATOR = '/'
@@ -452,7 +452,7 @@ export class SepaTreeNode {
       this.forks = {} //if there were no forks initialized it is not indended to be
     }
 
-    if (!this.entry) this.entry = new Uint8Array(32) as Bytes<32> // at directoties
+    if (!this.entry) this.entry = new Uint8Array(32) as Bytes<32>
 
     /// Header
     const version: MarshalVersion = '0.1'
@@ -463,6 +463,10 @@ export class SepaTreeNode {
 
     /// Forks
     const forkSerializations: Uint8Array[] = []
+    //TODO
+    for (const forkIndex of Object.keys(this.forks)) {
+      forkSerializations.push(this.forks[forkIndex].serialize())
+    }
 
     const bytes = new Uint8Array([
       ...versionBytes,
