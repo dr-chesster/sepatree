@@ -3,12 +3,11 @@ import {
   bytesToString,
   checkReference,
   equalBytes,
-  findIndexOfArray,
   flattenBytesArray,
   fromBigEndian,
   keccak256Hash,
   stringToBytes,
-  toBigEndianFromUint16
+  toBigEndianFromUint16,
 } from './utils'
 
 const PATH_SEPARATOR = '/'
@@ -19,7 +18,9 @@ type ForkMapping = { [key: string]: SepaTreeFork }
 const nodeForkSizes = {
   nodeType: 1,
   prefixLength: 1,
-  /** Bytes length before `reference` */
+  /** Bytes length before `reference`
+   * TODO seems wrong because it can be 64
+   */
   preReference: 32,
   metadata: 2,
   header: (): number => nodeForkSizes.nodeType + nodeForkSizes.prefixLength, // 2
@@ -98,15 +99,13 @@ export class SepaTreeFork {
     return data
   }
 
-  public static deserialize(
-    data: Uint8Array,
-    options?: {
-      withMetadata?: {
-        refBytesSize: number
-        metadataByteSize: number
-      }
-    },
-  ): SepaTreeFork {
+  /**
+   *
+   * @param data
+   * @param refByteSize if the parent node is with encrypted reference then the fork has the same as well..
+   * @returns
+   */
+  public static deserialize(data: Uint8Array, refByteSize: number): SepaTreeFork {
     const nodeType = data[0]
     const prefixLength = data[1]
 
@@ -117,29 +116,23 @@ export class SepaTreeFork {
     const headerSize = nodeForkSizes.header()
     const prefix = data.slice(headerSize, headerSize + prefixLength)
     const node = new SepaTreeNode()
+    const fork = new SepaTreeFork(prefix, node)
+    const entry = data.slice(nodeForkSizes.preReference, nodeForkSizes.preReference + refByteSize) as
+      | Bytes<32>
+      | Bytes<64>
+    node.setEntry = entry
+    const headerLength = nodeForkSizes.preReference + entry.length
+    const metadataData = data.slice(headerLength)
 
-    const withMetadata = options?.withMetadata
-
-    if (withMetadata) {
-      const { refBytesSize, metadataByteSize } = withMetadata
-
-      if (metadataByteSize > 0) {
-        node.setEntry = data.slice(nodeForkSizes.preReference, nodeForkSizes.preReference + refBytesSize) as
-          | Bytes<32>
-          | Bytes<64>
-
-        const startMetadata = nodeForkSizes.preReference + refBytesSize + nodeForkSizes.metadata
-        const metadataBytes = data.slice(startMetadata, startMetadata + metadataByteSize)
-
-        const jsonString = new TextDecoder().decode(metadataBytes)
-        node.setMetadata = JSON.parse(jsonString)
-      }
-    } else {
-      node.setEntry = data.slice(nodeForkSizes.preReference) as Bytes<32> | Bytes<64>
+    if (metadataData.length > 0) {
+      const metadataPayload = metadataData.slice(2)
+      const jsonString = new TextDecoder().decode(metadataPayload)
+      node.setMetadata = JSON.parse(jsonString)
     }
+
     node.setType = nodeType
 
-    return new SepaTreeFork(prefix, node)
+    return fork
   }
 }
 
@@ -352,19 +345,12 @@ export class SepaTreeNode {
    */
   public getForkAtPath(path: string): SepaTreeFork {
     const forkIndices = path.split(PATH_SEPARATOR)
-    const pathBytes = stringToBytes(path)
-
-    if (forkIndices.length === 0) throw EmptyPathError
 
     if (!this.forks) throw Error(`Fork mapping is not defined in the node`)
 
     const fork = this.forks[forkIndices[0]]
 
     if (!fork) throw new NotFoundError(path)
-
-    const prefixIndex = findIndexOfArray(pathBytes, fork.prefix)
-
-    if (prefixIndex === -1) throw new NotFoundError(path, fork.prefix)
 
     const rest = forkIndices.slice(1).join('/')
 
@@ -503,7 +489,7 @@ export class SepaTreeNode {
         }
 
         const nodeType = data.slice(offset, offset + nodeForkSizes.nodeType)
-        let nodeForkSize = nodeForkSizes.preReference + refBytesSize
+        let forkSize = nodeForkSizes.preReference + refBytesSize
 
         if (nodeTypeIsWithMetadataType(nodeType[0])) {
           if (data.length < offset + nodeForkSizes.preReference + refBytesSize + nodeForkSizes.metadata) {
@@ -511,24 +497,23 @@ export class SepaTreeNode {
           }
 
           const metadataByteSize = fromBigEndian(
-            data.slice(offset + nodeForkSize, offset + nodeForkSize + nodeForkSizes.metadata),
+            data.slice(offset + forkSize, offset + forkSize + nodeForkSizes.metadata),
           )
-          nodeForkSize += nodeForkSizes.metadata + metadataByteSize
+          forkSize = forkSize + nodeForkSizes.metadata + metadataByteSize
 
-          fork = SepaTreeFork.deserialize(data.slice(offset, offset + nodeForkSize), {
-            withMetadata: { refBytesSize, metadataByteSize },
-          })
+          fork = SepaTreeFork.deserialize(data.slice(offset, offset + forkSize), refBytesSize)
         } else {
+          // call deserialize that wont have metadata deserialization
           if (data.length < offset + nodeForkSizes.preReference + refBytesSize) {
             throw Error(`There is not enough size to read fork at offset ${offset}`)
           }
 
-          fork = SepaTreeFork.deserialize(data.slice(offset, offset + nodeForkSize))
+          fork = SepaTreeFork.deserialize(data.slice(offset, offset + forkSize), refBytesSize)
         }
 
         this.forks![bytesToString(fork.prefix)] = fork
 
-        offset += nodeForkSize
+        offset += forkSize
 
         forkIndex++
       }

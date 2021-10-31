@@ -4,7 +4,7 @@ import { keccak256 } from 'js-sha3'
 import { Bytes, Reference } from './types'
 
 export function checkReference(ref: Reference): void | never {
-  if (!(ref instanceof Uint8Array)) {
+  if (!(ref instanceof Uint8Array) || typeof ref !== 'object') {
     throw new Error('Given referennce is not an Uint8Array instance.')
   }
 
