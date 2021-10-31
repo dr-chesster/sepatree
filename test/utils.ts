@@ -1,11 +1,11 @@
-import { equalNodes, MantarayNode } from '../src/node'
+import { equalNodes, SepaTreeNode } from '../src/node'
 import { gen32Bytes } from '../src/utils'
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace jest {
     interface Matchers<R> {
-      toBeEqualNode(compareTo: MantarayNode): R
+      toBeEqualNode(compareTo: SepaTreeNode): R
     }
   }
 }
@@ -15,7 +15,7 @@ declare global {
  */
 export function commonMatchers(): void {
   expect.extend({
-    toBeEqualNode(received: MantarayNode, compareTo: MantarayNode) {
+    toBeEqualNode(received: SepaTreeNode, compareTo: SepaTreeNode) {
       const result = {
         pass: true,
         message: () => 'Given Manatary nodes are equal',
@@ -33,20 +33,20 @@ export function commonMatchers(): void {
   })
 }
 
-export function getSampleMantarayNode(): { node: MantarayNode; paths: Uint8Array[] } {
-  const node = new MantarayNode()
+export function getSampleMantarayNode(): { node: SepaTreeNode; paths: string[] } {
+  const node = new SepaTreeNode()
   const randAddress = gen32Bytes()
   node.setEntry = randAddress
-  const path1 = new TextEncoder().encode('path1/valami/elso')
-  const path2 = new TextEncoder().encode('path1/valami/masodik')
-  const path3 = new TextEncoder().encode('path1/valami/masodik.ext')
-  const path4 = new TextEncoder().encode('path1/valami')
-  const path5 = new TextEncoder().encode('path2')
-  node.addFork(path1, randAddress, { vmi: 'elso' })
-  node.addFork(path2, randAddress)
-  node.addFork(path3, randAddress)
-  node.addFork(path4, randAddress, { vmi: 'negy' })
-  node.addFork(path5, randAddress)
+  const path1 = 'path1'
+  const path2 = 'path1/valami'
+  const path3 = 'path1/valami/masodik.ext'
+  const path4 = 'path2'
+  const path5 = 'path1/valami/elso.ext'
+  SepaTreeNode.addFork(node, path1, randAddress, { vmi: 'elso' })
+  SepaTreeNode.addFork(node, path2, randAddress)
+  SepaTreeNode.addFork(node, path3, randAddress)
+  SepaTreeNode.addFork(node, path4, randAddress, { vmi: 'negy' })
+  SepaTreeNode.addFork(node, path5, randAddress)
 
   return {
     node,
