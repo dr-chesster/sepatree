@@ -16,7 +16,8 @@ export enum NodeType {
   mask = 255,
 }
 
-export type MetadataMapping = { [key: string]: string }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type MetadataMapping = { [key: string]: any }
 
 export type StorageLoader = (reference: Reference) => Promise<Uint8Array>
 

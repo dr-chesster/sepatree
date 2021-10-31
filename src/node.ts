@@ -8,7 +8,7 @@ import {
   fromBigEndian,
   keccak256Hash,
   stringToBytes,
-  toBigEndianFromUint16
+  toBigEndianFromUint16,
 } from './utils'
 
 const PATH_SEPARATOR = '/'
