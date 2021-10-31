@@ -8,7 +8,7 @@ import {
   fromBigEndian,
   keccak256Hash,
   stringToBytes,
-  toBigEndianFromUint16,
+  toBigEndianFromUint16
 } from './utils'
 
 const PATH_SEPARATOR = '/'
@@ -40,7 +40,7 @@ class NotFoundError extends Error {
     const prefixInfo = checkedPrefixBytes
       ? `Prefix on lookup: ${new TextDecoder().decode(checkedPrefixBytes)}`
       : 'No fork on the level'
-    super(`Path has not found in the manifest. Remaining path on lookup: ${remainingPath}. ${prefixInfo}`)
+    super(`Path has not found in the manifest. Remaining path on lookup: "${remainingPath}" ${prefixInfo}`)
   }
 }
 
@@ -366,31 +366,36 @@ export class SepaTreeNode {
 
     if (prefixIndex === -1) throw new NotFoundError(path, fork.prefix)
 
-    const rest = pathBytes.slice(fork.prefix.length)
+    const rest = forkIndices.slice(1).join('/')
 
     if (rest.length === 0) return fork
 
-    return fork.node.getForkAtPath(bytesToString(rest))
+    return fork.node.getForkAtPath(rest)
   }
 
   /**
    * Removes a path (even branch) from the node
    *
-   * @param prefix prefix of the node intended to remove (with its descendants)
+   * @param path prefix of the node intended to remove (with its descendants)
    */
-  public removeFork(prefix: string): void {
-    if (prefix === '') throw EmptyPathError
+  public static removeFork(node: SepaTreeNode, path: string): void {
+    if (path === '') throw EmptyPathError
 
-    if (!this.forks) throw Error(`Fork mapping is not defined in the manifest`)
+    if (!node.forks) throw Error(`Fork mapping is not defined in the manifest`)
 
-    const fork = this.forks[prefix]
+    const forkIndices = path.split(PATH_SEPARATOR)
+    const fork = node.forks[forkIndices[0]]
 
-    if (!fork) throw new NotFoundError(prefix)
+    if (!fork) throw new NotFoundError(path)
 
-    delete this.forks[prefix]
+    if (forkIndices.length === 1) {
+      delete node.forks[path]
 
-    if (Object.keys(this.forks).length === 0) {
-      this.makeNotEdge()
+      if (Object.keys(node.forks).length === 0) {
+        node.makeNotEdge()
+      }
+    } else {
+      SepaTreeNode.removeFork(fork.node, forkIndices.slice(1).join(PATH_SEPARATOR))
     }
   }
 
@@ -436,6 +441,11 @@ export class SepaTreeNode {
     this.contentAddress = undefined
   }
 
+  /**
+   * Only serialize after `save()`
+   *
+   * @returns data
+   */
   public serialize(): Uint8Array {
     if (!this.forks) {
       if (!this.entry) throw new UndefinedField('entry')
